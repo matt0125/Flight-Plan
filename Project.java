@@ -6,18 +6,12 @@ import java.io.*;
 import java.lang.Thread;
 
 
-// Input: Weighted undirected graph
-//  N
-//  NxN matrix
-//  N length array of wait times for each station
-
-
 public class Project
 {
   private static int[][] _matrix;
   private static int _numNodes;
-  private static int [] _turnTimeMaster;
-  private static int [] _turnTime;
+  private static int [] _turnTimeMaster; // holds the original wait time values so that wait time can reset once it reaches 0
+  private static int [] _turnTime; // the decremented times in other words the current time 
   private static ReentrantReadWriteLock _lock = new ReentrantReadWriteLock();
 
   private static final int INFINITY = (int) 10E8;
@@ -76,9 +70,9 @@ public class Project
 
       for (int j = 0; j < _numNodes; j++)
       { 
-        if (visited[j] == false && (time[j] + _turnTime[j]) <= min)
+        if (visited[j] == false && (time[j] + _turnTime[i]) <= min)
         {
-          min = (time[j] + _turnTime[j]);
+          min = (time[j] + _turnTime[i]);
           nextNode = j;
         }
       }
@@ -155,6 +149,7 @@ public class Project
   }
 }
 
+// Handles the changing wait times inbetween nodes
 class TimeController implements Runnable
 {
   int[] _turnTime;
@@ -285,8 +280,8 @@ class multiThread extends Thread
   @Override
   public void run()   // what the thread will do
   {
-    // will run dij algorithm and find the shortest path for every vertex from a given source
-    
+    // will run dij algorithm and produce a map of the shortest distances 
     result = dijkstras(source); // still need to store result
+    // need to tell thread to get next atomic int to work on
   }
 }
