@@ -1,0 +1,18 @@
+challenges: /changes
+
+    1 - The problem that we were referencing had weird inputs, to address this we created
+        our own inputs and put a spin on the probelm. Now, each terminal has its own load
+        and unload schedule because each airport is different and runs on a different schedule. 
+
+    2 - Another problem would be timeController (decrements the wait time) not updating before
+        the threads progress through. This would cause all planes to have the maximum possible
+        wait time for every terminal.
+
+    3 - One challenge that we faced while implementing our project was calculating a total
+        time taken. When a terminal is waiting, it still holds the possibility of reseting
+        once it reaches zero and leaving the airport. This would mean that even though a
+        node had a shorter distance, if its wait time had just reset we would need to calculate
+        and choose another node.
+
+    4 - Have to figure out a way to get a shared array between threads with no locks for
+        both wait times as well as uploading travel times for flight plan

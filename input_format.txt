@@ -1,0 +1,5 @@
+int n [number of nodes]
+
+int n x n array [bidirectional weighted graph] of travel times
+
+int n array array of wait times

@@ -1,0 +1,4 @@
+Current goals:
+    - Set up wait notifiy in all threads
+    - Print out results
+    - Challenge number 4

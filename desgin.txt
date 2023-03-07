@@ -1,0 +1,21 @@
+Flight plan
+    - All terminal locations with different travel times to get to each
+        - Display in a 2D array?
+
+Terminals
+    - Each terminal has their own travel time to each other terminal but its directional so
+      it is not the same going both ways
+    - Each terminal runs on its own schedule, sending out planes at its own time
+    - Not every terminal has flights going to every other terminal though all paths are possible
+    - Planes leave the instant just before the wait timer resets (basically means 0)
+
+multiThread class
+    - All share some object to wait for updated wait times
+    - Also share another shared object to know when to print out the flight plan
+    - Takes an atomic integer for dijkstras algorithm
+    - Inputs the shortest path array into the master fight plan matrix at its given level
+    
+TimeController
+    - updates the designated wait time within a given time frame
+    - Make sure all the threads operate within the timeBlock
+    - Resets atomic integer
