@@ -6,18 +6,12 @@ import java.io.*;
 import java.lang.Thread;
 
 
-// Input: Weighted undirected graph
-//  N
-//  NxN matrix
-//  N length array of wait times for each station
-
-
 public class Project
 {
   private static int[][] _matrix;
   private static int _numNodes;
-  private static int [] _turnTimeMaster;
-  private static int [] _turnTime;
+  private static int [] _turnTimeMaster; // holds the original wait time values so that wait time can reset once it reaches 0
+  private static int [] _turnTime; // the decremented times in other words the current time 
   private static ReentrantReadWriteLock _lock = new ReentrantReadWriteLock();
 
   private static final int INFINITY = (int) 10E8;
@@ -30,11 +24,15 @@ public class Project
     readMatrix("input.txt");
     printMatrix();
 
-    TimeController timeController = new TimeController(_turnTime, _turnTimeMaster, _lock);
-    Thread t1 = new Thread(timeController);
-    t1.start();
+    printTimes();
+
+    doDijkstras();
+
+    // TimeController timeController = new TimeController(_turnTime, _turnTimeMaster, _lock);
+    // Thread t1 = new Thread(timeController);
+    // t1.start();
     
-    createThreads(counter);
+    // createThreads(counter);
   }
 
   public static void createThreads(AtomicInteger counter) throws InterruptedException
@@ -61,39 +59,57 @@ public class Project
     
     boolean [] visited = new boolean[_numNodes];
 
-    for (int i = 0; i < _numNodes; i++)
-    {
-      time[i] = INFINITY;
-      visited[i] = false;
-    }
+    Arrays.fill(time, INFINITY);
+    Arrays.fill(visited, false);
 
-    time[source] = _turnTime[source]; // Source to source -> just wait time
+    time[source] = 0; // Source to source -> no wait
 
-    for (int i = 0; i < _numNodes; i++)
+    for (int count = 0; count < _numNodes; count++)
     {
+
+      // Finds the next min time path from current node
       int min = INFINITY;
-      int nextNode = -1;
+      int min_index = -1; // index of min node
 
-      for (int j = 0; j < _numNodes; j++)
-      { 
-        if (visited[j] == false && (time[j] + _turnTime[j]) <= min)
+      for (int v = 0; v < _numNodes; v++)
+      {
+        if (!visited[v] && time[v] <= min)
         {
-          min = (time[j] + _turnTime[j]);
-          nextNode = j;
+          min = time[v];
+          min_index = v;
         }
       }
 
-      visited[nextNode] = true;
+      // Process that min node
+      visited[min_index] = true;
 
-      for (int j = 0; j < _numNodes; j++)
+      // Update values of adjacent nodes of i
+      for (int v = 0; v < _numNodes; v++)
       {
-        if (!visited[j] && _matrix[i][j] != 0 && time[i] != INFINITY
-            && (time[i] + _turnTime[i] + _matrix[i][j]) < time[j])
-            time[j] = (time[i] + _turnTime[i] + _matrix[i][j]);
+        if (!visited[v] // not yet visited
+            && _matrix[min_index][v] != INFINITY // edge from node to node
+            && time[min_index] != INFINITY // evaluate path to be shorter & ↓
+            && time[min_index] + _matrix[min_index][v] + futureWaitTime(time[min_index], min_index) < time[v])
+        {
+          time[v] = time[min_index] + _matrix[min_index][v] + futureWaitTime(time[min_index], min_index); 
+        }
       }
     }
-
+    
     return time;
+  }
+
+  // Returns current nodes wait time [futureTime] in the future
+  public static int futureWaitTime(int futureTime, int node)
+  {
+    int presentWaitTime = _turnTime[node];
+    
+    // just wait the x amount of minutes then return the rest of the remaining time
+    if(futureTime < presentWaitTime)
+      return (presentWaitTime - futureTime);
+    
+    // wait the x amount of minutes then reference the time schedule
+    return ((futureTime - presentWaitTime) % _turnTimeMaster[node]);
   }
   
   public static void readMatrix(String filename) throws FileNotFoundException
@@ -127,14 +143,43 @@ public class Project
 
   public static void printMatrix()
   {
+    System.out.println("Matrix:");
     for (int i = 0; i < _numNodes; i++)
     {
       for (int j = 0; j < _numNodes; j++)
       {
-        System.out.print(_matrix[i][j] + " ");
+        System.out.printf("%4d", _matrix[i][j]);
       }
       System.out.println();
     }
+    System.out.println();
+  }
+  
+  private static void doDijkstras()
+  {
+    System.out.println("Dijsktras algo for all sources");
+
+    for(int i = 0; i < _numNodes; i++)
+    {
+      int[] d = dijkstras(i);
+
+      for(int j = 0; j < _numNodes; j++)
+      {
+        System.out.printf("%4d", d[j]);
+      }
+      System.out.println();
+    }
+    System.out.println();
+  }
+
+  private static void printTimes()
+  {
+    System.out.println("Master wait times:");
+    for(int i = 0; i < _numNodes; i++)
+    {
+      System.out.printf("%4d",_turnTimeMaster[i]);
+    }
+    System.out.println("\n");
   }
 
   public static int[] getTime(ReadLock lock)
@@ -155,6 +200,7 @@ public class Project
   }
 }
 
+// Handles the changing wait times inbetween nodes
 class TimeController implements Runnable
 {
   int[] _turnTime;
@@ -285,8 +331,8 @@ class multiThread extends Thread
   @Override
   public void run()   // what the thread will do
   {
-    // will run dij algorithm and find the shortest path for every vertex from a given source
-    
+    // will run dij algorithm and produce a map of the shortest distances 
     result = dijkstras(source); // still need to store result
+    // need to tell thread to get next atomic int to work on
   }
 }
