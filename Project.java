@@ -103,7 +103,7 @@ public class Project
 
     time[source] = 0; // Source to source -> no wait
 
-    for (int i = 0; i < _numNodes; i++)
+    for (int count = 0; count < _numNodes; count++)
     {
 
       // Finds the next min time path from current node
