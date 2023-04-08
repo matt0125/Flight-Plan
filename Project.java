@@ -206,12 +206,15 @@ class TimeController implements Runnable
   int[] _turnTime;
   int[] _turnTimeMaster;
   WriteLock _writeLock;
+  AtomicInteger _currentTime;
 
-  public TimeController(int [] turnTime, int [] turnTimeMaster, ReentrantReadWriteLock lock)
+
+  public TimeController(int [] turnTime, int [] turnTimeMaster, ReentrantReadWriteLock lock, AtomicInteger currentTime)
   {
     _turnTime = turnTime;
     _turnTimeMaster = turnTimeMaster;
     _writeLock = lock.writeLock();
+    _currentTime = currentTime;
   }
 
   @Override
@@ -227,12 +230,13 @@ class TimeController implements Runnable
         // Update array
         for (int i = 0; i < _turnTime.length; i++)
         {
-          _turnTime[i]--;
-
+          _turnTime[i]--; // adjusts the turn time of every node
+          _currentTime.incrementAndGet(); // increments current time
           if (_turnTime[i] == -1)
           {
-            _turnTime[i] = _turnTimeMaster[i];
+            _turnTime[i] = _turnTimeMaster[i]; // resets the timers back to their original wait times
           }
+          System.out.print("Node "+i+":"+_turnTime[i]+"s  "); // prints the wait times for each node after time has passed
         }
       }
       finally
