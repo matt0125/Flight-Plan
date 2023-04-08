@@ -236,8 +236,9 @@ class TimeController implements Runnable
           {
             _turnTime[i] = _turnTimeMaster[i]; // resets the timers back to their original wait times
           }
-          System.out.print("Node "+i+":"+_turnTime[i]+"s  "); // prints the wait times for each node after time has passed
+          System.out.print("Node "+(i+1)+": "+_turnTime[i]+"s  "); // prints the wait times for each node after time has passed
         }
+        System.out.print("\n");
       }
       finally
       {
