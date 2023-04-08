@@ -231,13 +231,13 @@ class TimeController implements Runnable
         for (int i = 0; i < _turnTime.length; i++)
         {
           _turnTime[i]--; // adjusts the turn time of every node
-          _currentTime.incrementAndGet(); // increments current time
           if (_turnTime[i] == -1)
           {
             _turnTime[i] = _turnTimeMaster[i]; // resets the timers back to their original wait times
           }
           System.out.print("Node "+(i+1)+": "+_turnTime[i]+"s  "); // prints the wait times for each node after time has passed
         }
+        _currentTime.incrementAndGet(); // increments current time
         System.out.print("\n");
       }
       finally
