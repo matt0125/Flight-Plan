@@ -1,31 +1,38 @@
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock.*;
 import java.io.*;
 import java.lang.Thread;
 
+// ORDER OF START:
+// threadController class
+// timeController class
 
 public class Project
 {
+  // Constants
+  private static final int INFINITY = (int) 10E8;
+  
+  // App settings
+  public static final int THREAD_COUNT = 2;
+  public static final boolean PRINT = true;
+  public static final int NUM_ITERATIONS = 5;
+  public static final int TIME_DELAY_MILLIS = 1000;
+  
+  // Thread variables
+  public static volatile boolean _exit = false;
+  private static volatile int _currentTime;
+  public static AtomicInteger _counter;
+  private static Object _timeLock = new Object();
+  private static Object _threadLock = new Object();
+  private static Object _controllerLock = new Object();
+  private static int _threadsFinished = 0;
+  
   // Dijkstras variables
   private static int[][] _matrix;
   private static int[][] _travelTime;
   private static int _numNodes;
   private static int [] _turnTime;
-  
-  // Thread variables
-  private static ReentrantReadWriteLock _lock = new ReentrantReadWriteLock();
-  public static volatile boolean _exit = false;
-  private static volatile int _currentTime;
-  public static AtomicInteger _counter;
 
-  // Constants
-  private static final int INFINITY = (int) 10E8;
-
-  // App settings
-  public static final int THREAD_COUNT = 8;
-  public static final boolean PRINT = true;
 
   public static void main(String [] args) throws FileNotFoundException, InterruptedException
   {
@@ -39,16 +46,17 @@ public class Project
       printWaitTimes();
     }
 
-    doDijkstras();
+    // doDijkstras();
 
-    TimeController timeController = new TimeController(_turnTime, _lock, PRINT);
-    Thread t1 = new Thread(timeController);
-    t1.start();
-    
-    Thread[] threads = createThreads();
-    startThreads(threads);
+    Thread threadController = new Thread(new ThreadController(_timeLock, _threadLock, _controllerLock, _counter));
+    Thread timeController = new Thread(new TimeController(_turnTime, _timeLock, TIME_DELAY_MILLIS, NUM_ITERATIONS, PRINT));
 
-    joinThreads(threads);
+    threadController.start();
+    timeController.start();
+
+    threadController.join();
+    timeController.join();
+
     
 
   }
@@ -56,34 +64,18 @@ public class Project
   public static Thread[] createThreads() throws InterruptedException
   {
 
-    Thread[] threads = new Thread[THREAD_COUNT-1];
+    Thread[] threads = new Thread[THREAD_COUNT];
 
-    for (int i = 0; i < (THREAD_COUNT-1); i++)
-    {
-      threads[i] = new Thread(new multiThread(_matrix, _matrix, _turnTime, _numNodes, _lock, _counter));
-    }
+    for (int i = 0; i < (THREAD_COUNT); i++)
+      threads[i] = new Thread(new multiThread(_matrix, _travelTime, _turnTime, _numNodes, _threadLock, _counter));
 
     return threads;
   }
 
-  private static void startThreads(Thread[] threads)
+  public static void startThreads(Thread[] threads)
   {
     for (int i = 0; i < threads.length; i++)
-    {
       threads[i].start();
-    }
-  }
-
-  private static void joinThreads(Thread[] threads)
-  {
-    for(int i = 0; i < threads.length; i++)
-    {
-      try {
-        threads[i].join();
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-      }
-    }
   }
 
   public static int getCurrentTime() { return _currentTime; }
@@ -212,10 +204,9 @@ public class Project
 
   public static void doDijkstras()
   {
-    System.out.println("Dijsktras algo for all sources");
-
     if(PRINT)
     {
+      System.out.println("Dijsktras algo for all sources");
       for(int i = 0; i < _numNodes; i++)
       {
         int[] d = singleSourceDijkstras(i);
@@ -237,23 +228,42 @@ public class Project
       }
     }
   }
+
+  // Notifies thread controller class when all the threads are finished
+  public static synchronized void threadFinished()
+  {
+    _threadsFinished++;
+
+    if(_threadsFinished == (THREAD_COUNT))
+    {
+      _threadsFinished = 0;
+      synchronized(_controllerLock)
+      {
+        _controllerLock.notify();
+      }
+    }
+  }
 }
 
 // Handles the changing wait times inbetween nodes
 class TimeController implements Runnable
 {
   int[] _turnTimeMaster; // Holds original turn times (shared across all threads)
-  int[] _turnTime; // Local copy of original turn times to update as time goes on 
-  WriteLock _writeLock;
+  int[] _turnTime; // Local copy of original turn times to update as time goes on
+  Object _timeLock;
   
+  final int DELAY;
+  final int NUM_ITERATIONS;
   final boolean PRINT;
 
 
-  public TimeController(int [] turnTime, ReentrantReadWriteLock lock, boolean print)
+  public TimeController(int [] turnTime, Object timeLock, int delay, int numIterations, boolean print)
   {
-    _writeLock = lock.writeLock();
     _turnTimeMaster = turnTime;
+    _timeLock = timeLock;
 
+    this.DELAY = delay;
+    this.NUM_ITERATIONS = numIterations;
     this.PRINT = print;
 
     // Needs a new copy of turntime to not alter original when printing current wait times
@@ -267,35 +277,29 @@ class TimeController implements Runnable
   @Override
   public void run()   
   {
-    // Come up with better names
-    if (PRINT)
-      print();
-    else
-      notPrint();
-  }
-
-  private void notPrint()
-  {
-    while(true)
+    while(!Project._exit)
     {
-      break;
-    }
-  }
-
-  private void print()
-  {
-    for(int i = 0; i < 10; i++)
-    {
-      System.out.println("Current time: " + Project.getCurrentTime());
-
       Project.updateCurrentTime();
+      
       updateTimes();
 
-      Project.printTravelTimes();
+      if(PRINT)
+      {
+        System.out.println("Current time: " + Project.getCurrentTime());
+        Project.printTravelTimes();
+        printCurrentTimes();
+        System.out.println();
+      }
 
-      printCurrentTimes();
-
-      System.out.println();
+      try {
+        Thread.sleep(DELAY);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+      synchronized(_timeLock)
+      {
+        _timeLock.notifyAll();
+      }
     }
   }
 
@@ -327,6 +331,102 @@ class TimeController implements Runnable
   }
 }
 
+class ThreadController implements Runnable
+{
+  Object _timeLock;
+  Object _threadLock;
+  Object _controllerLock;
+  AtomicInteger _counter;
+
+  Thread[] _threads;
+
+  public ThreadController(Object timeLock, Object threadLock, Object controllerLock, AtomicInteger counter) {
+    this._timeLock = timeLock;
+    this._threadLock = threadLock;
+    this._controllerLock = controllerLock;
+    this._counter = counter;
+  }
+
+  @Override
+  public void run()
+  {
+    int NUM_ITERATIONS = Project.NUM_ITERATIONS;
+
+    try {
+      _threads = Project.createThreads();
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+    startThreads();
+
+    long totalTime = 0;
+
+    for(int i = 0; i < NUM_ITERATIONS; i++)
+    {
+      if(i == (NUM_ITERATIONS - 1))
+        Project._exit = true;
+
+      totalTime += timeDijkstras();
+
+      if(!Project._exit)
+      {
+        // Wait for time to increment
+        synchronized(_timeLock)
+        {
+          try {
+            _timeLock.wait();
+          } catch (InterruptedException e) {
+            e.printStackTrace();
+          }
+        }
+      }
+    }
+
+    System.out.printf("Average execution time: %4.2f", (float) (totalTime / NUM_ITERATIONS));
+  }
+
+  private void startThreads()
+  {
+    for(int i = 0; i < _threads.length; i++)
+    {
+      _threads[i].start();
+    }
+  }
+
+  public long timeDijkstras()
+  {
+    _counter.set(0);
+    
+    try {
+      Thread.sleep(10);
+    } catch (InterruptedException e) {
+      e.printStackTrace();
+    }
+    
+    long startTime = System.currentTimeMillis();
+
+    // Do dijkstras in here
+    synchronized(_threadLock)
+    {
+      _threadLock.notifyAll();
+    }
+
+    // Wait for threads to finish
+    synchronized(_controllerLock)
+    {
+      try {
+        _controllerLock.wait();
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+    }
+
+    long endTime = System.currentTimeMillis();
+
+    return (endTime - startTime);
+  }
+  
+}
 
 class multiThread extends Thread
 {
@@ -336,24 +436,25 @@ class multiThread extends Thread
   int _numNodes;
 
   AtomicInteger _counter;
-  ReadLock _lock;
+  Object _threadLock;
   private final int INFINITY = (int) 10E8;
 
-  public multiThread(int matrix[][], int times[][], int[] turnTime, int numNodes, ReentrantReadWriteLock lock, AtomicInteger counter)
+  public multiThread(int matrix[][], int times[][], int[] turnTime, int numNodes, Object threadLock, AtomicInteger counter)
   {
     this._matrix = matrix;
     this._times = times;
     this._turnTime = turnTime;
     this._numNodes = numNodes;
-    this._lock = lock.readLock();
+    this._threadLock = threadLock;
     this._counter = counter;
   }
-
-
   
   // returns 1d int array of length _numNodes
   public int[] dijkstras(int source)
   {
+    if (source >= _numNodes)
+      System.err.println("Dijsktras input out of bounds, too high.");
+
     // Time to get to each node from source
     int [] time = new int[_numNodes];
     
@@ -400,13 +501,6 @@ class multiThread extends Thread
     return time;
   }
 
-  public int futureWaitTime(int futureTime, int node)
-  {
-    return (_turnTime[node] - ((Project.getCurrentTime() + futureTime) % _turnTime[node]));
-  }
-  
-
-
   @Override
   public void run()   // what the thread will do
   {
@@ -414,18 +508,23 @@ class multiThread extends Thread
     
     while(!Project._exit)
     {
+      synchronized(_threadLock)
+      {
+        try {
+          _threadLock.wait();
+        } catch (InterruptedException e) {
+          e.printStackTrace();
+        }
+      }
+
       // Take source number from pool while its less than the num nodes
       while((source = _counter.getAndIncrement()) < _numNodes)
       {
         // run dijkstras on that source and store it in times
         _times[source] = dijkstras(source);
       }
-      
-      // wait until the time increments
 
-    break;
-
+      Project.threadFinished();
     }
-    
   }
 }
