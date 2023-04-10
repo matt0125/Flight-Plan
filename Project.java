@@ -13,10 +13,13 @@ public class Project
   private static final int INFINITY = (int) 10E8;
   
   // App settings
-  public static final int THREAD_COUNT = 2;
-  public static final boolean PRINT = true;
-  public static final int NUM_ITERATIONS = 5;
-  public static final int TIME_DELAY_MILLIS = 1000;
+  public static final int THREAD_COUNT = 8;
+  public static final boolean PRINT = false;
+  public static final int NUM_ITERATIONS = 4;
+  public static final int TIME_DELAY_MILLIS = 50;
+  public static final String INPUT_FILE = "input.txt"; // Change to be args[0] in main
+  // 0 -> single thread, 1 -> multiple threads running dijkstras
+  public static final int METHOD = 1;
   
   // Thread variables
   public static volatile boolean _exit = false;
@@ -37,7 +40,7 @@ public class Project
   public static void main(String [] args) throws FileNotFoundException, InterruptedException
   {
     // Change input to be agrs[0]
-    readInput("input.txt");
+    readInput(INPUT_FILE);
     _counter = new AtomicInteger(0);
 
     if(PRINT)
@@ -48,7 +51,7 @@ public class Project
 
     // doDijkstras();
 
-    Thread threadController = new Thread(new ThreadController(_timeLock, _threadLock, _controllerLock, _counter));
+    Thread threadController = new Thread(new ThreadController(_timeLock, _threadLock, _controllerLock, _counter, METHOD));
     Thread timeController = new Thread(new TimeController(_turnTime, _timeLock, TIME_DELAY_MILLIS, NUM_ITERATIONS, PRINT));
 
     threadController.start();
@@ -81,9 +84,11 @@ public class Project
   public static int getCurrentTime() { return _currentTime; }
 
   public static void updateCurrentTime() { Project._currentTime++; }
+  
+  public static int get_numNodes() { return _numNodes; }
 
   // returns 1d int array of length _numNodes
-  public static int[] singleSourceDijkstras(int source)
+  public static int[] dijkstras(int source)
   {
     // Time to get to each node from source
     int [] time = new int[_numNodes];
@@ -204,28 +209,9 @@ public class Project
 
   public static void doDijkstras()
   {
-    if(PRINT)
+    for(int i = 0; i < _numNodes; i++)
     {
-      System.out.println("Dijsktras algo for all sources");
-      for(int i = 0; i < _numNodes; i++)
-      {
-        int[] d = singleSourceDijkstras(i);
-
-        for(int j = 0; j < _numNodes; j++)
-        {
-          System.out.printf("%4d", d[j]);
-        }
-        System.out.println();
-      }
-      System.out.println();
-    }
-
-    else
-    {
-      for(int i = 0; i < _numNodes; i++)
-      {
-        singleSourceDijkstras(i);
-      }
+      _travelTime[i] = dijkstras(i);
     }
   }
 
@@ -279,18 +265,18 @@ class TimeController implements Runnable
   {
     while(!Project._exit)
     {
-      Project.updateCurrentTime();
       
-      updateTimes();
-
       if(PRINT)
       {
+        updateTimes();
         System.out.println("Current time: " + Project.getCurrentTime());
         Project.printTravelTimes();
         printCurrentTimes();
         System.out.println();
       }
-
+      
+      Project.updateCurrentTime();
+      
       try {
         Thread.sleep(DELAY);
       } catch (InterruptedException e) {
@@ -337,26 +323,91 @@ class ThreadController implements Runnable
   Object _threadLock;
   Object _controllerLock;
   AtomicInteger _counter;
+  // 0 -> multi thread
+  // 1 -> single thread
+  int _method;
 
   Thread[] _threads;
 
-  public ThreadController(Object timeLock, Object threadLock, Object controllerLock, AtomicInteger counter) {
+  public ThreadController(Object timeLock, Object threadLock, Object controllerLock, AtomicInteger counter, int method) {
     this._timeLock = timeLock;
     this._threadLock = threadLock;
     this._controllerLock = controllerLock;
     this._counter = counter;
+
+    this._method = method;
   }
 
   @Override
   public void run()
   {
+    float avgTime;
+    switch(_method)
+    {
+      case(0):
+        avgTime = singleThread();
+        break;
+      case(1):
+        avgTime = multiThread();
+        break;
+      default:
+        System.err.println("Wrong method number for thread controller");
+        avgTime = 0;
+        break;
+    }
+    
+
+    System.out.printf("Average execution time: %4.2f millis", avgTime);
+  }
+
+  private float singleThread()
+  {
+    
     int NUM_ITERATIONS = Project.NUM_ITERATIONS;
 
+    long totalTime = 0;
+    long startTime;
+    long endTime;
+
+    for(int i = 0; i < NUM_ITERATIONS; i++)
+    {
+      if(i == (NUM_ITERATIONS - 1))
+        Project._exit = true;
+
+        startTime = System.currentTimeMillis();
+
+        Project.doDijkstras();
+    
+        endTime = System.currentTimeMillis();
+    
+        totalTime+= (endTime - startTime);
+
+
+        // Wait for time to increment
+        synchronized(_timeLock)
+        {
+          try {
+            _timeLock.wait();
+          } catch (InterruptedException e) {
+            e.printStackTrace();
+          }
+        }
+      
+    }
+
+    return ((float) totalTime / (float) NUM_ITERATIONS);
+  }
+
+  private float multiThread()
+  {
+    int NUM_ITERATIONS = Project.NUM_ITERATIONS;
+    
     try {
       _threads = Project.createThreads();
     } catch (InterruptedException e) {
       e.printStackTrace();
     }
+
     startThreads();
 
     long totalTime = 0;
@@ -382,7 +433,7 @@ class ThreadController implements Runnable
       }
     }
 
-    System.out.printf("Average execution time: %4.2f", (float) (totalTime / NUM_ITERATIONS));
+    return ((float) totalTime / (float) NUM_ITERATIONS);
   }
 
   private void startThreads()
@@ -491,7 +542,7 @@ class multiThread extends Thread
         if (!visited[n] // not yet visited
             && _matrix[min][n] != INFINITY // edge from node to node
             && time[min] != INFINITY // evaluate path to be shorter & ↓
-            && time[min] + _matrix[min][n] + (waitTime = (_turnTime[min] - ((Project.getCurrentTime() + time[min]) % _turnTime[min]))) < time[n]) // replace 0 with currentTime
+            && time[min] + _matrix[min][n] + (waitTime = (_turnTime[min] - ((Project.getCurrentTime() + time[min]) % _turnTime[min]))) < time[n])
         {
           time[n] = time[min] + _matrix[min][n] + waitTime; 
         }
