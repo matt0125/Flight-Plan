@@ -9,13 +9,11 @@ public class Project
   private static final int INFINITY = (int) 10E8;
   
   // App settings
-  public static final int THREAD_COUNT = 8;
-  public static final boolean PRINT = false;
-  public static final int NUM_ITERATIONS = 1;
+  public static final int THREAD_COUNT = 1;
+  public static final boolean PRINT = true;
+  public static final int NUM_ITERATIONS = 100;
   public static final int TIME_DELAY_MILLIS = 50;
-  public static final String INPUT_FILE = "input.txt"; // Change to be args[0] in main
-  // 0 -> single thread, 1 -> multiple threads running dijkstras
-  public static final int METHOD = 1;
+  public static final String INPUT_FILE = "input.txt";
   
   // Thread variables
   public static volatile boolean _exit = false;
@@ -47,8 +45,9 @@ public class Project
     }
 
     // doDijkstras();
+    _exit = false;
 
-    Thread threadController = new Thread(new ThreadController(_timeLock, _startLock, _threadLock, _controllerLock, _counter, METHOD));
+    Thread threadController = new Thread(new ThreadController(_timeLock, _startLock, _threadLock, _controllerLock, _counter, THREAD_COUNT));
     Thread timeController = new Thread(new TimeController(_turnTime, _startLock, _timeLock, TIME_DELAY_MILLIS, NUM_ITERATIONS, PRINT));
 
     timeController.start();
@@ -359,43 +358,33 @@ class ThreadController implements Runnable
   Object _threadLock;
   Object _controllerLock;
   AtomicInteger _counter;
+  int _threadCount;
   // 0 -> multi thread
   // 1 -> single thread
-  int _method;
 
   Thread[] _threads;
 
-  public ThreadController(Object timeLock, Object startLock, Object threadLock, Object controllerLock, AtomicInteger counter, int method) {
+  public ThreadController(Object timeLock, Object startLock, Object threadLock, Object controllerLock, AtomicInteger counter, int threadCount) {
     this._timeLock = timeLock;
     this._startLock = startLock;
     this._threadLock = threadLock;
     this._controllerLock = controllerLock;
     this._counter = counter;
-
-    this._method = method;
+    this._threadCount = threadCount;
   }
 
   @Override
   public void run()
   {
     float avgTime;
-    switch(_method)
-    {
-      case(0):
-        avgTime = singleThread();
-        break;
-      case(1):
-        avgTime = multiThread();
-        break;
-      default:
-        System.err.println("Wrong method number for thread controller");
-        avgTime = 0;
-        break;
-    }
+    if(_threadCount == 1)
+      avgTime = singleThread();
+    else
+      avgTime = multiThread();
 
     if(Project.PRINT)
       try {
-        Thread.sleep(1500);
+        Thread.sleep(150);
       } catch (InterruptedException e) {
         e.printStackTrace();
       }
