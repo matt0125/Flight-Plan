@@ -6,12 +6,41 @@ import java.util.Random;
 
 public class InputGenerator 
 {
-    public static int NUM_NODES = 100;
+    public static int NUM_NODES = 10;
     public static int AVG_NEG = 1;
     public static Random rand = new Random();
 
     public static void main(String args[]) throws FileNotFoundException, UnsupportedEncodingException
     {
+        int [][] nums = getnerateNumbers();
+        
+        PrintWriter writer = new PrintWriter("input.txt", "UTF-8");
+
+        writer.println(NUM_NODES + "\n");
+        
+
+        for(int i  = 0; i < NUM_NODES; i++)
+        {
+            for(int j  = 0; j < NUM_NODES; j++)
+            {
+                writer.print(nums[i][j] + " ");
+            }
+            writer.println();
+        }
+        
+        writer.println();
+
+        for(int i = 0; i < NUM_NODES; i++)
+        {
+            writer.print(rand.nextInt(100) + 1 + " ");
+        }
+
+        writer.close();
+    }
+
+    public static void generateInput(int num) throws FileNotFoundException, UnsupportedEncodingException
+    {
+        NUM_NODES = num;
         int [][] nums = getnerateNumbers();
         
         PrintWriter writer = new PrintWriter("input.txt", "UTF-8");
