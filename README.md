@@ -15,6 +15,9 @@ COP4520 group project - The Flight Plan
   <li><a href="./report.pdf">Project Report</a></li>
 </ul>
 
+## Summary
+To sum up this project in a few words, we parallelized Dijkstra's Algorithm against a large input in Java. We accomplished this by simply running the algorithm over the dataset across multiple threads, each getting assigned its own array. This is done across all rows every tick or "minute" in the problem's case and the travel times to get from one airport to any other are displayed in rapid succession along with the resulting average execution time in milliseconds per tick.
+
 
 
 ## Problem
